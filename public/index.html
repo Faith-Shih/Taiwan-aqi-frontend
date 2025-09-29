@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <title>台灣空氣品質監測</title>
+    <meta name="viewport" content="width=1024">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Comic+Neue&family=Huninn&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background: #DDE6F1;
+            font-family: 'Huninn', sans-serif;
+            margin: 0;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: row;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        .left-panel {
+            width: 32vw;
+            min-width: 320px;
+            padding: 40px 0 0 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .title {
+            color: #004C5D;
+            font-size: 2.4rem;
+            font-weight: bold;
+            margin-bottom: 16px;
+            letter-spacing: 2px;
+            font-family: 'Huninn', sans-serif;
+        }
+
+        .desc {
+            font-size: 1.1rem;
+            margin-bottom: 16px;
+        }
+
+        .select-group {
+            margin-bottom: 16px;
+            width: 80%;
+        }
+
+        .select-group label {
+            display: block;
+            margin-bottom: 4px;
+            font-size: 1rem;
+        }
+
+        .select-group select {
+            font-family: 'Huninn', sans-serif;
+            width: 100%;
+            padding: 6px 8px;
+            font-size: 1rem;
+            border-radius: 10px;
+            border: 1px solid #bbb;
+            margin-bottom: 8px;
+        }
+
+        .info-box {
+            background: #fff;
+            border-radius: 16px;
+            width: 80%;
+            min-height: 160px;
+            margin-bottom: 24px;
+            padding: 16px;
+            box-sizing: border-box;
+            box-shadow: 0 2px 8px #0001;
+            font-size: 1.1rem;
+        }
+
+        .aqi-legend {
+            margin-top: 12px;
+            width: 80%;
+        }
+
+        .aqi-legend-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .right-panel {
+            flex: 1;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding: 32px 0 0 0;
+        }
+
+        .map-box {
+            background: #fff;
+            border-radius: 18px;
+            width: 90%;
+            height: 90vh;
+            min-width: 500px;
+            min-height: 600px;
+            box-shadow: 0 2px 8px #0001;
+        }
+
+        .aqi-legend-color-dark {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 200px;
+            height: 30px;
+            color: #000;
+            border-radius: 16px;
+        }
+
+        .aqi-legend-color-light {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 200px;
+            height: 30px;
+            color: #fff;
+            border-radius: 16px;
+        }
+
+        @media (max-width: 900px) {
+            .container {
+                flex-direction: column;
+            }
+
+            .left-panel,
+            .right-panel {
+                width: 100vw;
+            }
+
+            .map-box {
+                width: 98vw;
+                min-width: unset;
+            }
+        }
+    </style>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCOtFePrZLNlGhi04LY08hEkCgPdA3T8Us"></script>
+    <script src="https://unpkg.com/@googlemaps/markerclusterer/dist/index.min.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <div class="left-panel">
+            <div class="title">台灣空氣品質監測</div>
+            <div class="select-group">
+                <label for="county">縣市</label>
+                <select id="county"></select>
+                <label for="town">地區</label>
+                <select id="town"></select>
+            </div>
+            <div class="info-box" id="infoBox">
+                請點選地圖標記或選擇地區
+            </div>
+            <div class="aqi-legend">
+                <div class="aqi-legend-row"><span style="margin-right: 60px;">0-50</span><span class="aqi-legend-color-dark"
+                        style="background:#2AE32D">良好</span></div>
+                <div class="aqi-legend-row"><span style="margin-right: 40px">51-100</span><span class="aqi-legend-color-dark"
+                        style="background:#FCFC4F">普通</span></div>
+                <div class="aqi-legend-row"><span style="margin-right: 30px">101-150</span><span class="aqi-legend-color-dark"
+                        style="background:#FD932A">對敏感族群不健康</span></div>
+                <div class="aqi-legend-row"><span style="margin-right: 30px">151-200</span><span class="aqi-legend-color-light"
+                        style="background:#F53C3F">對所有族群不健康</span></div>
+                <div class="aqi-legend-row"><span style="margin-right: 30px">201-300</span><span class="aqi-legend-color-light"
+                        style="background:#8C43AF">非常不健康</span></div>
+                <div class="aqi-legend-row"><span style="margin-right: 30px">301-500</span><span class="aqi-legend-color-light"
+                        style="background:#862011">危害</span></div>
+            </div>
+        </div>
+        <div class="right-panel">
+            <div class="map-box" id="map"></div>
+        </div>
+    </div>
+    <script>
+        const infoBox = document.getElementById('infoBox');
+        const countySelect = document.getElementById('county');
+        const townSelect = document.getElementById('town');
+        let map, markers = [], markerCluster, allData = [];
+
+        function getAqiColor(aqi) {
+            aqi = parseInt(aqi, 10);
+            if (aqi <= 50) return '#2AE32D';
+            if (aqi <= 100) return '#FCFC4F';
+            if (aqi <= 150) return '#FD932A';
+            if (aqi <= 200) return '#F53C3F';
+            if (aqi <= 300) return '#8C43AF';
+            return '#862011';
+        }
+        function showInfoBox(data) {
+            infoBox.innerHTML = `
+        <div><b>測站名稱：</b>${data.sitename}</div>
+        <div><b>縣市：</b>${data.county}</div>
+        <div><b>空氣品質指標：</b>${data.aqi}</div>
+        <div><b>狀態：</b>${data.status}</div>
+        <div><b>資料發布時間：</b>${data.publishtime}</div>
+        <div><b>經度：</b>${data.longitude}</div>
+        <div><b>緯度：</b>${data.latitude}</div>
+    `;
+        }
+        function updateTownOptions(county) {
+            const towns = Array.from(new Set(allData.filter(d => d.county === county).map(d => d.sitename)));
+            townSelect.innerHTML = `<option value="">全部地區</option>` + towns.map(t => `<option value="${t}">${t}</option>`).join('');
+        }
+        function filterMarkers() {
+            const county = countySelect.value;
+            const town = townSelect.value;
+            markers.forEach(m => m.setMap(null));
+            markers = [];
+            let filtered = allData;
+            if (county) filtered = filtered.filter(d => d.county === county);
+            if (town) filtered = filtered.filter(d => d.sitename === town);
+            filtered.forEach(d => {
+                const marker = new google.maps.Marker({
+                    position: { lat: parseFloat(d.latitude), lng: parseFloat(d.longitude) },
+                    map,
+                    icon: {
+                        path: google.maps.SymbolPath.CIRCLE,
+                        scale: 12,
+                        fillColor: getAqiColor(d.aqi),
+                        fillOpacity: 1,
+                        strokeWeight: 1,
+                        strokeColor: '#fff'
+                    }
+                });
+                marker.addListener('click', () => showInfoBox(d));
+                markers.push(marker);
+            });
+            if (markerCluster) markerCluster.clearMarkers();
+            markerCluster = new markerClusterer.MarkerClusterer({ map, markers });
+        }
+        fetch('/api/aqi').then(r => r.json()).then(data => {
+            allData = data;
+            const counties = Array.from(new Set(data.map(d => d.county)));
+            countySelect.innerHTML = `<option value="">全部縣市</option>` + counties.map(c => `<option value="${c}">${c}</option>`).join('');
+            countySelect.addEventListener('change', () => {
+                updateTownOptions(countySelect.value);
+                filterMarkers();
+                infoBox.innerHTML = '請點選地圖標記或選擇地區';
+            });
+            townSelect.addEventListener('change', () => {
+                filterMarkers();
+                const town = townSelect.value;
+                if (town) {
+                    const d = allData.find(d => d.sitename === town && d.county === countySelect.value);
+                    if (d) showInfoBox(d);
+                } else {
+                    infoBox.innerHTML = '請點選地圖標記或選擇地區';
+                }
+            });
+            updateTownOptions(countySelect.value);
+            map = new google.maps.Map(document.getElementById('map'), {
+                center: { lat: 23.7, lng: 121 },
+                zoom: 7,
+                mapTypeControl: false,
+                streetViewControl: false,
+                fullscreenControl: false
+            });
+            filterMarkers();
+        });
+    </script>
+</body>
+
+</html>
