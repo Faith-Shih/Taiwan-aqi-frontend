@@ -143,7 +143,7 @@
             }
         }
     </style>
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCOtFePrZLNlGhi04LY08hEkCgPdA3T8Us&loading=async" async defer></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCOtFePrZLNlGhi04LY08hEkCgPdA3T8Us&libraries=marker&loading=async&callback=initMap" async defer></script>
     <script src="https://unpkg.com/@googlemaps/markerclusterer/dist/index.min.js"></script>
 </head>
 
@@ -161,18 +161,18 @@
                 請點選地圖標記或選擇地區
             </div>
             <div class="aqi-legend">
-                <div class="aqi-legend-row"><span style="margin-right: 60px;">0-50</span><span class="aqi-legend-color-dark"
-                        style="background:#2AE32D">良好</span></div>
-                <div class="aqi-legend-row"><span style="margin-right: 40px">51-100</span><span class="aqi-legend-color-dark"
-                        style="background:#FCFC4F">普通</span></div>
-                <div class="aqi-legend-row"><span style="margin-right: 30px">101-150</span><span class="aqi-legend-color-dark"
-                        style="background:#FD932A">對敏感族群不健康</span></div>
-                <div class="aqi-legend-row"><span style="margin-right: 30px">151-200</span><span class="aqi-legend-color-light"
-                        style="background:#F53C3F">對所有族群不健康</span></div>
-                <div class="aqi-legend-row"><span style="margin-right: 30px">201-300</span><span class="aqi-legend-color-light"
-                        style="background:#8C43AF">非常不健康</span></div>
-                <div class="aqi-legend-row"><span style="margin-right: 30px">301-500</span><span class="aqi-legend-color-light"
-                        style="background:#862011">危害</span></div>
+                <div class="aqi-legend-row"><span style="margin-right: 60px;">0-50</span><span
+                        class="aqi-legend-color-dark" style="background:#2AE32D">良好</span></div>
+                <div class="aqi-legend-row"><span style="margin-right: 40px">51-100</span><span
+                        class="aqi-legend-color-dark" style="background:#FCFC4F">普通</span></div>
+                <div class="aqi-legend-row"><span style="margin-right: 30px">101-150</span><span
+                        class="aqi-legend-color-dark" style="background:#FD932A">對敏感族群不健康</span></div>
+                <div class="aqi-legend-row"><span style="margin-right: 30px">151-200</span><span
+                        class="aqi-legend-color-light" style="background:#F53C3F">對所有族群不健康</span></div>
+                <div class="aqi-legend-row"><span style="margin-right: 30px">201-300</span><span
+                        class="aqi-legend-color-light" style="background:#8C43AF">非常不健康</span></div>
+                <div class="aqi-legend-row"><span style="margin-right: 30px">301-500</span><span
+                        class="aqi-legend-color-light" style="background:#862011">危害</span></div>
             </div>
         </div>
         <div class="right-panel">
@@ -180,11 +180,13 @@
         </div>
     </div>
     <script>
+        // 取得 infoBox, 縣市與地區下拉選單的 DOM 元素
         const infoBox = document.getElementById('infoBox');
         const countySelect = document.getElementById('county');
         const townSelect = document.getElementById('town');
         let map, markers = [], markerCluster, allData = [];
 
+        // 根據 AQI 數值回傳對應的顏色
         function getAqiColor(aqi) {
             aqi = parseInt(aqi, 10);
             if (aqi <= 50) return '#2AE32D';
@@ -194,78 +196,109 @@
             if (aqi <= 300) return '#8C43AF';
             return '#862011';
         }
+
+        // 顯示測站詳細資訊於 infoBox
         function showInfoBox(data) {
             infoBox.innerHTML = `
-        <div><b>測站名稱：</b>${data.sitename}</div>
-        <div><b>縣市：</b>${data.county}</div>
-        <div><b>空氣品質指標：</b>${data.aqi}</div>
-        <div><b>狀態：</b>${data.status}</div>
-        <div><b>資料發布時間：</b>${data.publishtime}</div>
-        <div><b>經度：</b>${data.longitude}</div>
-        <div><b>緯度：</b>${data.latitude}</div>
-    `;
+            <div><b>測站名稱：</b>${data.sitename}</div>
+            <div><b>縣市：</b>${data.county}</div>
+            <div><b>空氣品質指標：</b>${data.aqi}</div>
+            <div><b>狀態：</b>${data.status}</div>
+            <div><b>資料發布時間：</b>${data.publishtime}</div>
+            <div><b>經度：</b>${data.longitude}</div>
+            <div><b>緯度：</b>${data.latitude}</div>
+        `;
         }
+
+        // 根據選擇的縣市，更新地區下拉選單的選項
         function updateTownOptions(county) {
+            // 取得該縣市所有測站名稱（地區）
             const towns = Array.from(new Set(allData.filter(d => d.county === county).map(d => d.sitename)));
             townSelect.innerHTML = `<option value="">全部地區</option>` + towns.map(t => `<option value="${t}">${t}</option>`).join('');
         }
+
+        // 根據選擇的縣市與地區，篩選並顯示地圖上的標記
         function filterMarkers() {
             const county = countySelect.value;
             const town = townSelect.value;
-            markers.forEach(m => m.setMap(null));
+            // 先移除所有標記
+            markers.forEach(m => m.map = null); // AdvancedMarkerElement移除方式
             markers = [];
             let filtered = allData;
+            // 依縣市與地區篩選資料
             if (county) filtered = filtered.filter(d => d.county === county);
             if (town) filtered = filtered.filter(d => d.sitename === town);
+            // 為每筆資料建立地圖標記
             filtered.forEach(d => {
-                const marker = new google.maps.Marker({
-                    position: { lat: parseFloat(d.latitude), lng: parseFloat(d.longitude) },
+                if (!d.latitude || !d.longitude) return;
+                const marker = new google.maps.marker.AdvancedMarkerElement({
                     map,
-                    icon: {
-                        path: google.maps.SymbolPath.CIRCLE,
-                        scale: 12,
-                        fillColor: getAqiColor(d.aqi),
-                        fillOpacity: 1,
-                        strokeWeight: 1,
-                        strokeColor: '#fff'
-                    }
+                    position: { lat: parseFloat(d.latitude), lng: parseFloat(d.longitude) },
+                    content: (() => {
+                        // 標記樣式：圓形，顏色依 AQI
+                        const div = document.createElement('div');
+                        div.style.width = '24px';
+                        div.style.height = '24px';
+                        div.style.borderRadius = '50%';
+                        div.style.background = getAqiColor(d.aqi);
+                        div.style.border = '2px solid #fff';
+                        return div;
+                    })()
                 });
+                // 點擊標記顯示 infoBox
                 marker.addListener('click', () => showInfoBox(d));
                 markers.push(marker);
             });
+            // 清除舊的群組標記
             if (markerCluster) markerCluster.clearMarkers();
-            markerCluster = new markerClusterer.MarkerClusterer({ map, markers });
+            // 若有標記則建立群組
+            if (markers.length > 0) {
+                markerCluster = new markerClusterer.MarkerClusterer({ map, markers });
+            }
         }
-        map = new google.maps.Map(document.getElementById('map'), {
+
+        // Google Maps API 會自動呼叫這個函式，初始化地圖
+        function initMap() {
+            map = new google.maps.Map(document.getElementById('map'), {
                 center: { lat: 23.7, lng: 121 },
                 zoom: 7,
                 mapTypeControl: false,
                 streetViewControl: false,
-                fullscreenControl: false
+                fullscreenControl: false,
+                mapId: 'DEMO_MAP_ID'
             });
-        fetch('https://taiwan-aqi-backend.onrender.com/api/aqi').then(r => r.json()).then(data => {
-            allData = data;
-            const counties = Array.from(new Set(data.map(d => d.county)));
-            countySelect.innerHTML = `<option value="">全部縣市</option>` + counties.map(c => `<option value="${c}">${c}</option>`).join('');
-            countySelect.addEventListener('change', () => {
+
+            // 從後端 API 取得 AQI 資料，並初始化下拉選單與地圖標記
+            fetch('https://taiwan-aqi-backend.onrender.com/api/aqi').then(r => r.json()).then(data => {
+                allData = data;
+                // 取得所有縣市選項
+                const counties = Array.from(new Set(data.map(d => d.county)));
+                countySelect.innerHTML = `<option value="">全部縣市</option>` + counties.map(c => `<option value="${c}">${c}</option>`).join('');
+                // 監聽縣市選擇變更
+                countySelect.addEventListener('change', () => {
+                    updateTownOptions(countySelect.value);
+                    filterMarkers();
+                    infoBox.innerHTML = '請點選地圖標記或選擇地區';
+                });
+                // 監聽地區選擇變更
+                townSelect.addEventListener('change', () => {
+                    filterMarkers();
+                    const town = townSelect.value;
+                    if (town) {
+                        // 顯示該地區的 infoBox
+                        const d = allData.find(d => d.sitename === town && d.county === countySelect.value);
+                        if (d) showInfoBox(d);
+                    } else {
+                        infoBox.innerHTML = '請點選地圖標記或選擇地區';
+                    }
+                });
+                // 預設初始化地區選項與標記
                 updateTownOptions(countySelect.value);
                 filterMarkers();
-                infoBox.innerHTML = '請點選地圖標記或選擇地區';
             });
-            townSelect.addEventListener('change', () => {
-                filterMarkers();
-                const town = townSelect.value;
-                if (town) {
-                    const d = allData.find(d => d.sitename === town && d.county === countySelect.value);
-                    if (d) showInfoBox(d);
-                } else {
-                    infoBox.innerHTML = '請點選地圖標記或選擇地區';
-                }
-            });
-            updateTownOptions(countySelect.value);
-            
-            filterMarkers();
-        });
+        }
+        // 讓 Google Maps API 能呼叫 initMap
+        window.initMap = initMap;
     </script>
 </body>
 
